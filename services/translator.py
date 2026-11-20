@@ -2,39 +2,72 @@
 # -*- coding: utf-8 -*-
 """
 Translator Service
-Handles image recognition and translation using Zhipu AI API
+Handles image recognition and translation via an OpenAI-compatible API.
 """
 
-import os
 import base64
 import json
 import time
-from typing import Dict, List, Optional
+from typing import Dict, List
 from pathlib import Path
 
 try:
-    from zai import ZhipuAiClient
+    from openai import OpenAI
 except ImportError:
-    ZhipuAiClient = None
+    OpenAI = None
 
 import config
 
+_IMAGE_MIME = {
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.bmp': 'image/bmp',
+}
+
 
 class Translator:
-    """Handle image translation using Zhipu AI."""
+    """Handle image translation using an OpenAI-compatible vision model."""
 
     def __init__(self):
-        self.api_key = config.ZHIPU_API_KEY
-        self.model = config.ZHIPU_MODEL
+        self.api_key = config.API_KEY
+        self.base_url = config.BASE_URL
+        self.model = config.MODEL_ID
         self.client = None
 
-        if ZhipuAiClient:
-            self.client = ZhipuAiClient(api_key=self.api_key)
+        if OpenAI and self.api_key and self.base_url and self.model:
+            self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+
+    def _require_client(self):
+        if OpenAI is None:
+            raise ImportError("openai is not installed. Run: pip install openai")
+        missing = [
+            name for name, value in (
+                ("BASE_URL", self.base_url),
+                ("API_KEY", self.api_key),
+                ("MODEL_ID", self.model),
+            ) if not value
+        ]
+        if missing:
+            raise RuntimeError(
+                "Missing "
+                + ", ".join(missing)
+                + ". Set them in .env (see .env.example)."
+            )
+        if self.client is None:
+            self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
 
     def encode_image(self, image_path: str) -> str:
         """Encode image to base64."""
         with open(image_path, 'rb') as f:
             return base64.b64encode(f.read()).decode('utf-8')
+
+    def image_data_url(self, image_path: str) -> str:
+        """Build a data URL accepted by OpenAI-compatible vision APIs."""
+        mime = _IMAGE_MIME.get(Path(image_path).suffix.lower(), 'image/jpeg')
+        return f"data:{mime};base64,{self.encode_image(image_path)}"
 
     def translate_image(self, image_path: str, source_lang: str = 'zh', target_lang: str = 'en') -> Dict:
         """
@@ -48,11 +81,7 @@ class Translator:
         Returns:
             Dictionary containing extracted and translated content
         """
-        if self.client is None:
-            raise ImportError("zai-sdk not installed. Run: pip install zai-sdk")
-
-        # Encode image
-        image_base64 = self.encode_image(image_path)
+        self._require_client()
 
         # Build prompt based on language pair
         prompt = self._build_translation_prompt(source_lang, target_lang)
@@ -61,7 +90,7 @@ class Translator:
         content = [
             {
                 "type": "image_url",
-                "image_url": {"url": image_base64}
+                "image_url": {"url": self.image_data_url(image_path)}
             },
             {
                 "type": "text",
@@ -114,7 +143,7 @@ Please identify:
 
 Return the result in the following JSON format:
 {{
-    "document_type": "Document type in {target_name}",
+    "document_type": "Short document name in {target_name} only, such as ID Card, Passport, Household Register, Marriage Certificate, Birth Certificate, Employment Certificate, or Bank Statement",
     "document_type_original": "Document type in original language",
     "fields": [
         {{
@@ -199,10 +228,7 @@ Only return the JSON, no other text."""
         Returns:
             Document type string
         """
-        if self.client is None:
-            return 'unknown'
-
-        image_base64 = self.encode_image(image_path)
+        self._require_client()
 
         prompt = """Identify the type of this document. Return only one of these types:
 - passport
@@ -217,7 +243,7 @@ Only return the JSON, no other text."""
 Return only the type name, nothing else."""
 
         content = [
-            {"type": "image_url", "image_url": {"url": image_base64}},
+            {"type": "image_url", "image_url": {"url": self.image_data_url(image_path)}},
             {"type": "text", "text": prompt}
         ]
 

@@ -8,8 +8,8 @@ pdf2image>=1.16.0
 openpyxl>=3.1.0
 Pillow>=9.0.0
 
-# AI Translation
-zai-sdk>=0.2.0
+# AI Translation (OpenAI-compatible chat completions)
+openai>=1.40.0
 
 # Utilities
 python-dotenv>=1.0.0

@@ -7,8 +7,16 @@ Configuration settings for Visa Translator Web Application
 import os
 from pathlib import Path
 
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    load_dotenv = None
+
 # Base directory
 BASE_DIR = Path(__file__).parent
+
+if load_dotenv is not None:
+    load_dotenv(BASE_DIR / ".env")
 
 # Upload settings
 UPLOAD_FOLDER = BASE_DIR / "static" / "uploads"
@@ -16,9 +24,10 @@ OUTPUT_FOLDER = BASE_DIR / "static" / "outputs"
 ALLOWED_EXTENSIONS = {'pdf', 'xlsx', 'xls', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'}
 MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB max file size
 
-# Zhipu AI API
-ZHIPU_API_KEY = os.environ.get("ZHIPU_API_KEY", "8f1be1b2e5d5459c87b66e9f61167884.fhoyzFfDmNhUDUCJ")
-ZHIPU_MODEL = "glm-4.6v-flash"
+# OpenAI-compatible chat API (vision models). Set these in .env.
+BASE_URL = os.environ.get("BASE_URL", "").strip()
+API_KEY = os.environ.get("API_KEY", "").strip()
+MODEL_ID = os.environ.get("MODEL_ID", "").strip()
 
 # Supported languages
 SUPPORTED_LANGUAGES = {
